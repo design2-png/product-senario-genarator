@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<!-- saved from url=(0046)file:///C:/Users/linko/Downloads/index_11.html -->
+<html lang="zh-Hant"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Backbone 情境圖生成器</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@500;600&family=Noto+Sans+TC:wght@300;400;500&display=swap');
+  :root{
+    --ink:#0d0d0e;--ink-2:#161618;--ink-3:#1f1f22;
+    --line:#2c2c30;--line-2:#3a3a3f;
+    --fog:#e8e6e0;--fog-dim:#a8a6a0;--fog-mute:#6f6e6a;
+    --wood:#b8895a;
+    --serif:'Noto Serif TC',serif;--sans:'Noto Sans TC',sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--ink);color:var(--fog);font-family:var(--sans);font-weight:300;-webkit-font-smoothing:antialiased;min-height:100vh}
+  .top{border-bottom:1px solid var(--line);padding:22px 40px;display:flex;align-items:center;justify-content:space-between}
+  .top .brand{font-family:var(--serif);font-weight:600;font-size:18px;color:#fff;letter-spacing:.02em}
+  .top .eyebrow{font-size:11px;letter-spacing:.28em;text-transform:uppercase;color:var(--wood)}
+  .wrap{max-width:1140px;margin:0 auto;padding:56px 40px}
+  h1{font-family:var(--serif);font-weight:500;font-size:30px;color:#fff;margin-bottom:10px;letter-spacing:.01em}
+  .sub{color:var(--fog-dim);font-size:15px;margin-bottom:44px;max-width:60ch}
+  .panel{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:4px;overflow:hidden}
+  .col{background:var(--ink-2);padding:36px 34px}
+  .col h2{font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--fog-mute);margin-bottom:22px;font-weight:500}
+  .hint{font-size:12.5px;color:var(--fog-mute);margin-bottom:20px;line-height:1.7}
+  .slots{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .slot{border:1px dashed var(--line-2);border-radius:4px;aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:.2s;position:relative;overflow:hidden;background:var(--ink)}
+  .slot:hover{border-color:var(--wood)}
+  .slot.has{border-style:solid;border-color:var(--line-2)}
+  .slot.has img{width:100%;height:100%;object-fit:contain}
+  .slot .ph{text-align:center;padding:14px;pointer-events:none}
+  .slot .ph .ic{font-size:20px;color:var(--fog-mute);margin-bottom:6px}
+  .slot .ph .t{font-size:12.5px;color:var(--fog-dim)}
+  .slot .ph .req{font-size:11px;color:var(--wood);margin-top:4px}
+  .slot .ph .opt{font-size:11px;color:var(--fog-mute);margin-top:4px}
+  .slot .rm{position:absolute;top:6px;right:6px;width:20px;height:20px;border-radius:50%;background:rgba(13,13,14,.8);color:var(--fog);border:1px solid var(--line-2);display:none;align-items:center;justify-content:center;font-size:12px;cursor:pointer;z-index:2}
+  .slot.has .rm{display:flex}
+  input[type=file]{display:none}
+  label.field{display:block;font-size:13px;color:var(--fog-dim);margin:26px 0 10px}
+  textarea{width:100%;background:var(--ink);border:1px solid var(--line-2);color:var(--fog);padding:12px 14px;border-radius:4px;font-family:var(--sans);font-size:14px;font-weight:300;resize:vertical;min-height:74px;line-height:1.7}
+  textarea:focus{outline:none;border-color:var(--wood)}
+  .presets{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+  .preset{font-size:12px;color:var(--fog-dim);border:1px solid var(--line-2);border-radius:20px;padding:6px 13px;cursor:pointer;transition:.2s;background:none;font-family:var(--sans)}
+  .preset:hover{border-color:var(--wood);color:var(--fog)}
+  .btn{margin-top:28px;width:100%;background:var(--fog);color:var(--ink);border:none;padding:15px;border-radius:4px;font-family:var(--sans);font-weight:500;font-size:15px;cursor:pointer;letter-spacing:.05em;transition:.2s}
+  .btn:hover{background:#fff}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+  .result{aspect-ratio:4/3;background:var(--ink);border:1px solid var(--line);border-radius:4px;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative}
+  .result img{width:100%;height:100%;object-fit:contain}
+  .result .idle{color:var(--fog-mute);font-size:14px;text-align:center;padding:30px}
+  .spinner{width:34px;height:34px;border:2px solid var(--line-2);border-top-color:var(--wood);border-radius:50%;animation:spin 1s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .loading{display:flex;flex-direction:column;align-items:center;gap:16px}
+  .loading .msg{font-size:13px;color:var(--fog-dim)}
+  .dl{margin-top:18px;display:inline-block;font-size:13px;color:var(--wood);text-decoration:none;border-bottom:1px solid var(--wood);padding-bottom:2px}
+  .err{color:#d98a6a;font-size:13px;margin-top:14px;line-height:1.7}
+  @media(max-width:800px){.panel{grid-template-columns:1fr}.wrap{padding:40px 24px}}
+</style>
+</head>
+<body>
+<div class="top">
+  <div class="brand">Backbone</div>
+  <div class="eyebrow">情境圖生成系統 · 內部工具</div>
+</div>
+
+<div class="wrap">
+  <h1>新品情境圖生成器</h1>
+  <p class="sub">上傳新品的多角度產品照，描述要生成的情境。系統保留產品原貌、只生成背景。角度給越齊，生成越準。</p>
+
+  <div class="panel">
+    <div class="col">
+      <h2>產品照 · 多角度</h2>
+      <div class="hint">主視角必填；其他角度選填，補得越齊，生成的準確度越高。</div>
+      <div class="slots" id="slots">
+        <label class="slot" data-key="product_main">
+          <input type="file" accept="image/*">
+          <div class="ph"><div class="ic">＋</div><div class="t">主視角</div><div class="req">必填</div></div>
+          <span class="rm">✕</span>
+        </label>
+        <label class="slot" data-key="product_45">
+          <input type="file" accept="image/*">
+          <div class="ph"><div class="ic">＋</div><div class="t">45 度</div><div class="opt">選填</div></div>
+          <span class="rm">✕</span>
+        </label>
+        <label class="slot" data-key="product_side">
+          <input type="file" accept="image/*">
+          <div class="ph"><div class="ic">＋</div><div class="t">側面</div><div class="opt">選填</div></div>
+          <span class="rm">✕</span>
+        </label>
+        <label class="slot" data-key="product_back">
+          <input type="file" accept="image/*">
+          <div class="ph"><div class="ic">＋</div><div class="t">背面</div><div class="opt">選填</div></div>
+          <span class="rm">✕</span>
+        </label>
+      </div>
+
+      <label class="field" for="scene">要生成什麼情境</label>
+      <textarea id="scene" placeholder="例如：現代居家辦公空間，暖木家具、大面窗自然光、沉穩高級的氛圍">現代居家辦公空間，暖木家具、自然光、沉穩高級的氛圍</textarea>
+      <div class="presets" id="presets">
+        <button class="preset">明亮藝廊住辦，大面窗、淺橡木地板</button>
+        <button class="preset">深色沉穩辦公，深炭灰木格柵、低光電影感</button>
+        <button class="preset">淺灰到米白漸層純色背景，攝影棚感</button>
+      </div>
+
+      <button class="btn" id="go" disabled="">生成情境圖</button>
+      <div class="err" id="err"></div>
+    </div>
+
+    <div class="col">
+      <h2>成品</h2>
+      <div class="result" id="result">
+        <div class="idle">生成的情境圖會顯示在這裡</div>
+      </div>
+      <div id="after"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const files = {};
+const slots = document.querySelectorAll('.slot');
+const go = document.getElementById('go');
+const result = document.getElementById('result');
+const after = document.getElementById('after');
+const err = document.getElementById('err');
+const sceneEl = document.getElementById('scene');
+
+slots.forEach(slot=>{
+  const key = slot.dataset.key;
+  const input = slot.querySelector('input');
+  const ph = slot.querySelector('.ph');
+  const rm = slot.querySelector('.rm');
+  input.addEventListener('change', e=>{
+    const f = e.target.files[0]; if(!f) return;
+    files[key] = f;
+    const url = URL.createObjectURL(f);
+    slot.classList.add('has');
+    ph.style.display='none';
+    let img = slot.querySelector('img');
+    if(!img){img=document.createElement('img');slot.insertBefore(img,rm);}
+    img.src=url;
+    refresh();
+  });
+  rm.addEventListener('click', e=>{
+    e.preventDefault();e.stopPropagation();
+    delete files[key];
+    slot.classList.remove('has');
+    const img=slot.querySelector('img'); if(img) img.remove();
+    ph.style.display='';
+    input.value='';
+    refresh();
+  });
+});
+
+document.querySelectorAll('.preset').forEach(p=>{
+  p.addEventListener('click',()=>{ sceneEl.value=p.textContent.trim(); });
+});
+
+function refresh(){ go.disabled = !files['product_main']; }
+
+const MSGS=['正在保留產品原貌…','正在生成背景環境…','正在套用品牌調性…','正在高清放大…'];
+
+go.addEventListener('click', async ()=>{
+  if(!files['product_main']) return;
+  err.textContent=''; after.innerHTML=''; go.disabled=true;
+  let mi=0;
+  result.innerHTML='<div class="loading"><div class="spinner"></div><div class="msg" id="lmsg">'+MSGS[0]+'</div></div>';
+  const timer=setInterval(()=>{mi=(mi+1)%MSGS.length;const el=document.getElementById('lmsg');if(el)el.textContent=MSGS[mi];},2500);
+  try{
+    const fd=new FormData();
+    Object.entries(files).forEach(([k,f])=>fd.append(k,f));
+    fd.append('scene', sceneEl.value);
+    const r=await fetch('/api/generate',{method:'POST',body:fd});
+    const d=await r.json();
+    if(!r.ok) throw new Error(d.error||'生成失敗');
+    if(d.done && d.raw){clearInterval(timer);showResult(extractImg(d.raw));return;}
+    const jobId=d.job_id;
+    if(!jobId) throw new Error('沒有取得 job_id');
+    poll(jobId,timer);
+  }catch(e){
+    clearInterval(timer);
+    result.innerHTML='<div class="idle">生成未完成</div>';
+    err.textContent='錯誤：'+e.message; go.disabled=false;
+  }
+});
+
+async function poll(jobId,timer){
+  const started=Date.now();
+  const iv=setInterval(async()=>{
+    if(Date.now()-started>180000){clearInterval(iv);clearInterval(timer);err.textContent='生成逾時，請重試。';result.innerHTML='<div class="idle">逾時</div>';go.disabled=false;return;}
+    try{
+      const r=await fetch('/api/status/'+jobId);
+      const d=await r.json();
+      if(d.status==='completed'){clearInterval(iv);clearInterval(timer);showResult(d.image);}
+      else if(d.status==='failed'){clearInterval(iv);clearInterval(timer);err.textContent='生成失敗，請重試。';result.innerHTML='<div class="idle">失敗</div>';go.disabled=false;}
+    }catch(e){}
+  },3000);
+}
+function extractImg(raw){return raw.output&&raw.output.image||raw.result&&raw.result.image||raw.outputs&&raw.outputs[0]&&raw.outputs[0].url||raw.image||null;}
+function showResult(url){
+  go.disabled=false;
+  if(!url){err.textContent='生成完成，但找不到圖片網址（請檢查後端回傳格式）。';result.innerHTML='<div class="idle">—</div>';return;}
+  result.innerHTML='<img src="'+url+'" alt="生成結果">';
+  after.innerHTML='<a class="dl" href="'+url+'" download target="_blank">下載這張圖 ↓</a>';
+}
+</script>
+
+
+</body></html>
