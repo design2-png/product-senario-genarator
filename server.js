@@ -13,18 +13,19 @@ const KREA_ENDPOINT = process.env.KREA_ENDPOINT
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || `http://localhost:${PORT}`;
 
 const REF_IMAGES = {
-  '1': process.env.REF_KENWEI || 'https://res.cloudinary.com/de4ovur81/image/upload/v1782900712/e04e98c0d4ebee04f18ae4503e73d0cd_vnpcls.jpg',
-  '2': process.env.REF_LIGHT  || 'https://res.cloudinary.com/de4ovur81/image/upload/v1782900712/f76189e81aa87a7bac0b44027a0eba92_uuwp5i.jpg',
-  '3': process.env.REF_SCENE  || 'https://res.cloudinary.com/de4ovur81/image/upload/v1782900712/c13c4e9597ffac87ae44de75484a0847_nx9cko.jpg',
+  'f2c0b30a-image': process.env.REF_KENWEI || 'https://res.cloudinary.com/de4ovur81/image/upload/v1782900712/e04e98c0d4ebee04f18ae4503e73d0cd_vnpcls.jpg',
+  'bdbaac99-image': process.env.REF_LIGHT  || 'https://res.cloudinary.com/de4ovur81/image/upload/v1782900712/f76189e81aa87a7bac0b44027a0eba92_uuwp5i.jpg',
+  '9411fe60-image': process.env.REF_SCENE  || 'https://res.cloudinary.com/de4ovur81/image/upload/v1782900712/c13c4e9597ffac87ae44de75484a0847_nx9cko.jpg',
 };
 
 const FIELD_MAP = {
   product_main: 'fe820f64-image',
-  product_45:   '45',
+  product_45:   '0ef2230a-image',
   product_side: '3965e631-image',
-  product_back: '0ef2230a-image',
+  product_back: '6c5064f2-image',
 };
 const FRONT_KEY = '7ec743de-image';
+const TEXT_KEY = 'bcaa7354-inputText';
 
 if (!KREA_API_KEY) console.warn('尚未設定 KREA_API_KEY');
 
@@ -54,16 +55,14 @@ app.post('/api/generate', upload.fields(ANGLE_FIELDS), async (req, res) => {
 
     const urlOf = (field) => f[field] && f[field][0]
       ? `${PUBLIC_BASE_URL}/uploads/${f[field][0].filename}` : null;
-
     const mainUrl = urlOf('product_main');
 
     const body = { ...REF_IMAGES };
     for (const [feField, kreaKey] of Object.entries(FIELD_MAP)) {
-      const u = urlOf(feField);
-      body[kreaKey] = u || mainUrl;
+      body[kreaKey] = urlOf(feField) || mainUrl;
     }
-    body[FRONT_KEY] = urlOf('product_main');
-    body['subject'] = (req.body.scene || '現代居家辦公空間').toString();
+    body[FRONT_KEY] = mainUrl;
+    body[TEXT_KEY] = (req.body.scene || '現代居家辦公空間').toString();
 
     const kreaRes = await fetch(KREA_ENDPOINT, {
       method: 'POST',
@@ -76,8 +75,9 @@ app.post('/api/generate', upload.fields(ANGLE_FIELDS), async (req, res) => {
       return res.status(502).json({ error: 'Krea 呼叫失敗', detail: data });
     }
 
-    const jobId = data.job_id || data.id;
-    if (!jobId) return res.json({ done: true, raw: data });
+    const first = Array.isArray(data) ? data[0] : data;
+    const jobId = first && (first.job_id || first.id);
+    if (!jobId) return res.status(502).json({ error: '沒有取得 job_id', detail: data });
     res.json({ job_id: jobId });
   } catch (err) {
     console.error(err);
@@ -90,15 +90,14 @@ app.get('/api/status/:jobId', async (req, res) => {
     const r = await fetch(`https://api.krea.ai/jobs/${req.params.jobId}`, {
       headers: { 'Authorization': `Bearer ${KREA_API_KEY}` },
     });
-    const data = await r.json();
+    let data = await r.json();
     if (!r.ok) return res.status(502).json({ error: '查詢失敗', detail: data });
+
+    if (Array.isArray(data)) data = data[0] || {};
 
     const status = data.status;
     if (status === 'completed') {
-      let image = null;
       const result = data.result || {};
-      const urls = result.urls || result.outputs || result.images || result;
-
       const dig = (v) => {
         if (!v) return null;
         if (typeof v === 'string' && /^https?:\/\//.test(v)) return v;
@@ -110,13 +109,12 @@ app.get('/api/status/:jobId', async (req, res) => {
         }
         return null;
       };
-      image = dig(urls) || dig(result) || dig(data);
-
-      console.log('job completed, raw result:', JSON.stringify(data.result || data));
-      return res.json({ status: 'completed', image, raw: data });
+      const image = dig(result) || dig(data);
+      console.log('job completed, result:', JSON.stringify(result));
+      return res.json({ status: 'completed', image, debug: image ? undefined : JSON.stringify(result) });
     }
     if (status === 'failed' || status === 'cancelled') {
-      return res.json({ status: 'failed', raw: data });
+      return res.json({ status: 'failed', detail: data });
     }
     res.json({ status: 'processing' });
   } catch (err) {
@@ -127,5 +125,4 @@ app.get('/api/status/:jobId', async (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`伺服器啟動： ${PUBLIC_BASE_URL}`);
-  console.log(`前端頁面： ${PUBLIC_BASE_URL}/`);
 });
