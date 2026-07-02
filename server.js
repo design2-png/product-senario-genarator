@@ -1,6 +1,7 @@
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
+const sharp = require('sharp');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -35,16 +36,19 @@ const upload = multer({
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 
-function toDataUri(buffer, mimetype) {
-  return `data:${mimetype || 'image/png'};base64,${buffer.toString('base64')}`;
+async function toDataUri(buffer) {
+  const resized = await sharp(buffer)
+    .resize(1280, 1280, { fit: 'inside', withoutEnlargement: true })
+    .jpeg({ quality: 82 })
+    .toBuffer();
+  return `data:image/jpeg;base64,${resized.toString('base64')}`;
 }
 
 async function urlToDataUri(url) {
   const r = await fetch(url);
   if (!r.ok) throw new Error(`參考圖下載失敗 ${r.status}: ${url}`);
-  const ct = r.headers.get('content-type') || 'image/jpeg';
   const buf = Buffer.from(await r.arrayBuffer());
-  return `data:${ct};base64,${buf.toString('base64')}`;
+  return toDataUri(buf);
 }
 
 let REF_CACHE = null;
@@ -68,7 +72,7 @@ app.post('/api/generate', upload.fields(ANGLE_FIELDS), async (req, res) => {
     const dataUris = {};
     for (const feField of Object.keys(FIELD_MAP)) {
       if (f[feField] && f[feField][0]) {
-        dataUris[feField] = toDataUri(f[feField][0].buffer, f[feField][0].mimetype);
+        dataUris[feField] = await toDataUri(f[feField][0].buffer);
       }
     }
     const mainUri = dataUris['product_main'];
