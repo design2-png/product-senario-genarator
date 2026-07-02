@@ -1,8 +1,8 @@
 const express = require('express');
 const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
 const crypto = require('crypto');
+const path = require('path');
+const cloudinary = require('cloudinary').v2;
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -10,7 +10,12 @@ const PORT = process.env.PORT || 3000;
 const KREA_API_KEY = process.env.KREA_API_KEY;
 const KREA_ENDPOINT = process.env.KREA_ENDPOINT
   || 'https://api.krea.ai/node-apps/49a0d905-aa8e-4de4-b5f2-687c53413e4e/execute';
-const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || `http://localhost:${PORT}`;
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'de4ovur81',
+  api_key: process.env.CLOUDINARY_API_KEY || '683669475455126',
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 const REF_IMAGES = {
   'f2c0b30a-image': process.env.REF_KENWEI || 'https://res.cloudinary.com/de4ovur81/image/upload/v1782900712/e04e98c0d4ebee04f18ae4503e73d0cd_vnpcls.jpg',
@@ -28,23 +33,26 @@ const FRONT_KEY = '7ec743de-image';
 const TEXT_KEY = 'bcaa7354-inputText';
 
 if (!KREA_API_KEY) console.warn('尚未設定 KREA_API_KEY');
+if (!process.env.CLOUDINARY_API_SECRET) console.warn('尚未設定 CLOUDINARY_API_SECRET');
 
-const UPLOAD_DIR = path.join(__dirname, 'uploads');
-if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR);
-
-const storage = multer.diskStorage({
-  destination: (_r, _f, cb) => cb(null, UPLOAD_DIR),
-  filename: (_r, file, cb) => cb(null, crypto.randomBytes(8).toString('hex') + path.extname(file.originalname)),
-});
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 15 * 1024 * 1024 },
   fileFilter: (_r, file, cb) => /^image\//.test(file.mimetype) ? cb(null, true) : cb(new Error('只接受圖片檔')),
 });
 
-app.use('/uploads', express.static(UPLOAD_DIR));
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
+
+function uploadToCloudinary(buffer) {
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      { folder: 'backbone-uploads', resource_type: 'image' },
+      (err, result) => err ? reject(err) : resolve(result.secure_url)
+    );
+    stream.end(buffer);
+  });
+}
 
 const ANGLE_FIELDS = Object.keys(FIELD_MAP).map(name => ({ name, maxCount: 1 }));
 
@@ -53,13 +61,17 @@ app.post('/api/generate', upload.fields(ANGLE_FIELDS), async (req, res) => {
     const f = req.files || {};
     if (!f['product_main']) return res.status(400).json({ error: '主視角產品照為必填' });
 
-    const urlOf = (field) => f[field] && f[field][0]
-      ? `${PUBLIC_BASE_URL}/uploads/${f[field][0].filename}` : null;
-    const mainUrl = urlOf('product_main');
+    const urls = {};
+    for (const feField of Object.keys(FIELD_MAP)) {
+      if (f[feField] && f[feField][0]) {
+        urls[feField] = await uploadToCloudinary(f[feField][0].buffer);
+      }
+    }
+    const mainUrl = urls['product_main'];
 
     const body = { ...REF_IMAGES };
     for (const [feField, kreaKey] of Object.entries(FIELD_MAP)) {
-      body[kreaKey] = urlOf(feField) || mainUrl;
+      body[kreaKey] = urls[feField] || mainUrl;
     }
     body[FRONT_KEY] = mainUrl;
     body[TEXT_KEY] = (req.body.scene || '現代居家辦公空間').toString();
@@ -92,7 +104,6 @@ app.get('/api/status/:jobId', async (req, res) => {
     });
     let data = await r.json();
     if (!r.ok) return res.status(502).json({ error: '查詢失敗', detail: data });
-
     if (Array.isArray(data)) data = data[0] || {};
 
     const status = data.status;
@@ -124,5 +135,5 @@ app.get('/api/status/:jobId', async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`伺服器啟動： ${PUBLIC_BASE_URL}`);
+  console.log(`伺服器啟動： port ${PORT}`);
 });
