@@ -1,6 +1,5 @@
 const express = require('express');
 const multer = require('multer');
-const crypto = require('crypto');
 const path = require('path');
 const cloudinary = require('cloudinary').v2;
 
@@ -13,24 +12,24 @@ const KREA_ENDPOINT = process.env.KREA_ENDPOINT
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'de4ovur81',
-  api_key: process.env.CLOUDINARY_API_KEY || '683669475455126',
+  api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
 const REF_IMAGES = {
-  'f2c0b30a-image': process.env.REF_KENWEI || 'https://res.cloudinary.com/de4ovur81/image/upload/v1782900712/e04e98c0d4ebee04f18ae4503e73d0cd_vnpcls.jpg',
-  'bdbaac99-image': process.env.REF_LIGHT  || 'https://res.cloudinary.com/de4ovur81/image/upload/v1782900712/f76189e81aa87a7bac0b44027a0eba92_uuwp5i.jpg',
-  '9411fe60-image': process.env.REF_SCENE  || 'https://res.cloudinary.com/de4ovur81/image/upload/v1782900712/c13c4e9597ffac87ae44de75484a0847_nx9cko.jpg',
+  '1': process.env.REF_KENWEI || 'https://res.cloudinary.com/de4ovur81/image/upload/v1782900712/e04e98c0d4ebee04f18ae4503e73d0cd_vnpcls.jpg',
+  '2': process.env.REF_LIGHT  || 'https://res.cloudinary.com/de4ovur81/image/upload/v1782900712/f76189e81aa87a7bac0b44027a0eba92_uuwp5i.jpg',
+  '3': process.env.REF_SCENE  || 'https://res.cloudinary.com/de4ovur81/image/upload/v1782900712/c13c4e9597ffac87ae44de75484a0847_nx9cko.jpg',
 };
 
 const FIELD_MAP = {
   product_main: 'fe820f64-image',
-  product_45:   '0ef2230a-image',
+  product_45:   '45',
   product_side: '3965e631-image',
-  product_back: '6c5064f2-image',
+  product_back: '0ef2230a-image',
 };
 const FRONT_KEY = '7ec743de-image';
-const TEXT_KEY = 'bcaa7354-inputText';
+const TEXT_KEY = 'subject';
 
 if (!KREA_API_KEY) console.warn('尚未設定 KREA_API_KEY');
 if (!process.env.CLOUDINARY_API_SECRET) console.warn('尚未設定 CLOUDINARY_API_SECRET');
@@ -76,12 +75,15 @@ app.post('/api/generate', upload.fields(ANGLE_FIELDS), async (req, res) => {
     body[FRONT_KEY] = mainUrl;
     body[TEXT_KEY] = (req.body.scene || '現代居家辦公空間').toString();
 
+    console.log('=== 送給 Krea 的 body ===', JSON.stringify(body, null, 2));
+
     const kreaRes = await fetch(KREA_ENDPOINT, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${KREA_API_KEY}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
     const data = await kreaRes.json();
+    console.log('=== Krea execute 回應 ===', JSON.stringify(data));
     if (!kreaRes.ok) {
       console.error('Krea execute 失敗:', JSON.stringify(data));
       return res.status(502).json({ error: 'Krea 呼叫失敗', detail: data });
